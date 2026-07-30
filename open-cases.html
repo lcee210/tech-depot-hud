@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Cases</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg: #0a0e14;
+    --text: #e8ecf1;
+    --muted: #6b7684;
+    --accent: #ff7a45;
+  }
+  *{ box-sizing: border-box; margin:0; padding:0; }
+  html,body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    width: 100vw; height: 100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  #wrap{
+    text-align:center;
+  }
+  #big-number{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size: clamp(120px, 22vw, 320px);
+    line-height: 1;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  #label{
+    margin-top: 12px;
+    font-size: clamp(20px, 2.4vw, 34px);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  #meta{
+    margin-top: 28px;
+    color: var(--muted);
+    font-size: clamp(13px, 1.1vw, 17px);
+  }
+  #warning{
+    margin-top: 20px;
+    display:none;
+    color: #ffd7c2;
+    background: #3a1f14;
+    border: 1px solid var(--accent);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    display:inline-block;
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="big-number">—</div>
+    <div id="label">Open Cases</div>
+    <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Data pulled <span id="fetch-time">—</span></div>
+    <div id="warning">Showing sample data — check DATA_URL in config</div>
+  </div>
+
+<script>
+/* ============================================================
+   CONFIG
+
+   DATA_URL now points to a file living in the SAME repo/folder
+   as this HTML page (e.g. GitHub Pages), not OneDrive. This
+   avoids cross-origin/CORS issues entirely, since the file is
+   fetched from the same origin as the page itself.
+
+   Workflow: whenever you want a fresh snapshot, export from
+   Dynamics, save it with the SAME filename below, and upload it
+   to the repo overwriting the old one. No link-fiddling needed.
+   ============================================================ */
+const DATA_URL = "data.xlsx";   // filename of the export, in this same folder
+const SHEET_NAME = "";          // leave blank to use the first tab
+const REFETCH_MINUTES = 10;     // how often to re-pull the file
+const SAMPLE_COUNT = 47;        // fallback number shown if the fetch fails
+/* ============================================================ */
+
+function fmtTime(){
+  return new Date().toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function isRowEmpty(row){
+  return Object.values(row).every(v => v === '' || v === null || v === undefined);
+}
+
+async function loadCount(){
+  const numEl = document.getElementById('big-number');
+  const warnEl = document.getElementById('warning');
+  try {
+    const resp = await fetch(DATA_URL);
+    if (!resp.ok) throw new Error('fetch failed: ' + resp.status);
+    const buffer = await resp.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheetName = SHEET_NAME && workbook.SheetNames.includes(SHEET_NAME)
+      ? SHEET_NAME
+      : workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const cleanRows = rows.filter(r => !isRowEmpty(r));
+    numEl.textContent = cleanRows.length.toLocaleString();
+    warnEl.style.display = 'none';
+  } catch (err){
+    numEl.textContent = SAMPLE_COUNT.toLocaleString();
+    warnEl.style.display = 'inline-block';
+  }
+  document.getElementById('fetch-time').textContent = fmtTime();
+}
+
+loadCount();
+setInterval(loadCount, REFETCH_MINUTES * 60 * 1000);
+</script>
+</body>
+</html>
