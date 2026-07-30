@@ -113,6 +113,33 @@
     font-size: clamp(13px, 1.1vw, 17px);
     letter-spacing: 0.04em;
   }
+  #breakdown{
+    margin-top: 26px;
+    display:flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content:center;
+    max-width: 70vw;
+  }
+  #breakdown .chip{
+    display:flex;
+    align-items:baseline;
+    gap: 8px;
+    background: #17130f;
+    border: 1px solid var(--panel-edge);
+    border-radius: 999px;
+    padding: 8px 18px;
+  }
+  #breakdown .chip .owner-name{
+    font-size: clamp(14px, 1.3vw, 19px);
+    font-weight: 500;
+    color: var(--text);
+  }
+  #breakdown .chip .owner-count{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(16px, 1.5vw, 22px);
+    color: var(--orange);
+  }
   #warning{
     margin-top: 20px;
     display:none;
@@ -157,6 +184,7 @@
     <div id="label">Loading…</div>
     <div id="underline"></div>
     <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Data pulled <span id="fetch-time">—</span></div>
+    <div id="breakdown"></div>
     <div id="warning">Showing sample data — check DATA_URL in config</div>
   </div>
 
@@ -183,14 +211,21 @@ const STATUS_COLUMN = "Status Reason";
 const DWELL_SECONDS = 15;           // how long each slide stays on screen
 const REFETCH_MINUTES = 10;         // how often to re-pull the workbook
 
+const OWNER_COLUMN = "Owner";
+
 const SLIDES = [
   { label: "Total",       filterValue: null },
   { label: "Unassigned",  filterValue: "Assigned" },
-  { label: "In Progress", filterValue: "In Progress" },
+  { label: "In Progress", filterValue: "In Progress", breakdownBy: OWNER_COLUMN, exclude: ["Tech Depot"] },
   { label: "On Hold",     filterValue: "On Hold" }
 ];
 
 const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
+const SAMPLE_BREAKDOWN = [
+  { name: "Sarah Lucio", count: 9 },
+  { name: "John Widner", count: 8 },
+  { name: "Lawrence Conway", count: 7 }
+];
 /* ============================================================ */
 
 let rawRows = null;
@@ -236,6 +271,26 @@ function countForSlide(slide, index){
   return rawRows.filter(r => r[STATUS_COLUMN] === slide.filterValue).length;
 }
 
+function breakdownForSlide(slide){
+  if (!slide.breakdownBy) return null;
+  if (usingSample || !rawRows){
+    return SAMPLE_BREAKDOWN;
+  }
+  const exclude = slide.exclude || [];
+  const matching = rawRows.filter(r =>
+    (slide.filterValue === null || r[STATUS_COLUMN] === slide.filterValue) &&
+    !exclude.includes(r[slide.breakdownBy])
+  );
+  const counts = {};
+  matching.forEach(r => {
+    const key = r[slide.breakdownBy] || '(unassigned)';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 function renderSlide(index){
   const slide = SLIDES[index];
   const count = countForSlide(slide, index);
@@ -244,6 +299,18 @@ function renderSlide(index){
   document.getElementById('slide-num').textContent = index + 1;
   document.getElementById('slide-total').textContent = SLIDES.length;
   document.getElementById('warning').style.display = usingSample ? 'block' : 'none';
+
+  const breakdownEl = document.getElementById('breakdown');
+  const breakdown = breakdownForSlide(slide);
+  if (breakdown && breakdown.length){
+    breakdownEl.innerHTML = breakdown.map(item =>
+      `<div class="chip"><span class="owner-name">${item.name}</span><span class="owner-count">${item.count}</span></div>`
+    ).join('');
+    breakdownEl.style.display = 'flex';
+  } else {
+    breakdownEl.innerHTML = '';
+    breakdownEl.style.display = 'none';
+  }
 }
 
 function startProgressBar(){
