@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Depot HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg: #0d0c0c;
+    --panel-edge: #262322;
+    --text: #f5f1ea;
+    --muted: #8a8580;
+    --orange: #ff7300;
+    --red: #da291c;
+  }
+  *{ box-sizing: border-box; margin:0; padding:0; }
+  html,body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Archivo', sans-serif;
+    width: 100vw; height: 100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    overflow:hidden;
+  }
+
+  #stripe{
+    position:fixed;
+    top:0; left:0; right:0;
+    height: 10px;
+    display:flex;
+  }
+  #stripe span{ flex:1; }
+  #stripe span:first-child{ background: var(--orange); }
+  #stripe span:last-child{ background: var(--red); }
+
+  #badge{
+    position:fixed;
+    top: clamp(28px, 3vw, 48px);
+    left: clamp(28px, 3vw, 48px);
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  #badge .mark{
+    font-family:'Archivo Black', sans-serif;
+    font-size: clamp(20px, 2vw, 30px);
+    color: var(--bg);
+    background: var(--orange);
+    padding: 6px 12px;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
+  }
+  #badge .badge-label{
+    font-size: clamp(13px, 1.1vw, 17px);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+  }
+
+  #slide-index{
+    position:fixed;
+    top: clamp(28px, 3vw, 48px);
+    right: clamp(28px, 3vw, 48px);
+    font-family:'Archivo Black', sans-serif;
+    color: var(--muted);
+    font-size: clamp(14px, 1.3vw, 20px);
+  }
+  #slide-index b{ color: var(--orange); }
+
+  #wrap{
+    text-align:center;
+  }
+  #big-number{
+    font-family:'Archivo Black', sans-serif;
+    font-size: clamp(140px, 24vw, 340px);
+    line-height: 1;
+    color: var(--orange);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 60px rgba(255,115,0,0.25);
+  }
+  #label{
+    margin-top: 8px;
+    font-weight: 600;
+    font-size: clamp(22px, 2.6vw, 36px);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  #underline{
+    width: clamp(80px, 8vw, 140px);
+    height: 6px;
+    background: var(--red);
+    margin: 22px auto 0;
+    border-radius: 3px;
+  }
+  #meta{
+    margin-top: 30px;
+    color: var(--muted);
+    font-size: clamp(13px, 1.1vw, 17px);
+    letter-spacing: 0.04em;
+  }
+  #warning{
+    margin-top: 20px;
+    display:none;
+    color: #2a1c14;
+    background: var(--orange);
+    border: none;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  #progress-track{
+    position:fixed;
+    left: clamp(28px, 3vw, 48px);
+    right: clamp(28px, 3vw, 48px);
+    bottom: clamp(24px, 3vw, 40px);
+    height: 5px;
+    background: var(--panel-edge);
+    border-radius: 5px;
+    overflow:hidden;
+  }
+  #progress-fill{
+    height:100%;
+    width:0%;
+    background: var(--orange);
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+  <div id="stripe"><span></span><span></span></div>
+  <div id="badge">
+    <div class="mark">WB</div>
+    <div class="badge-label">Tech Depot</div>
+  </div>
+  <div id="slide-index"><b id="slide-num">1</b> / <span id="slide-total">1</span></div>
+
+  <div id="wrap">
+    <div id="big-number">—</div>
+    <div id="label">Loading…</div>
+    <div id="underline"></div>
+    <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Data pulled <span id="fetch-time">—</span></div>
+    <div id="warning">Showing sample data — check DATA_URL in config</div>
+  </div>
+
+  <div id="progress-track"><div id="progress-fill"></div></div>
+
+<script>
+/* ============================================================
+   CONFIG
+
+   One workbook drives every slide below. Point DATA_URL at the
+   raw case-list export living in the same repo/folder as this
+   page (same-origin — see notes from earlier in the build).
+
+   STATUS_COLUMN must match your export's column header exactly.
+   Each slide either counts every row (filterValue: null) or
+   counts rows where STATUS_COLUMN equals filterValue.
+
+   To add more slides later (you mentioned more are coming),
+   just add another { label, filterValue } entry below.
+   ============================================================ */
+const DATA_URL = "data.xlsx";
+const SHEET_NAME = "";              // leave blank to use the first tab
+const STATUS_COLUMN = "Status Reason";
+const DWELL_SECONDS = 15;           // how long each slide stays on screen
+const REFETCH_MINUTES = 10;         // how often to re-pull the workbook
+
+const SLIDES = [
+  { label: "Open Cases",       filterValue: null },
+  { label: "Unassigned Cases", filterValue: "Assigned" },
+  { label: "In Progress",      filterValue: "In Progress" },
+  { label: "On Hold",          filterValue: "On Hold" }
+];
+
+const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
+/* ============================================================ */
+
+let rawRows = null;
+let usingSample = false;
+let currentIndex = 0;
+
+function fmtTime(){
+  return new Date().toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function isRowEmpty(row){
+  return Object.values(row).every(v => v === '' || v === null || v === undefined);
+}
+
+async function loadWorkbook(){
+  try {
+    const resp = await fetch(DATA_URL);
+    if (!resp.ok) throw new Error('fetch failed: ' + resp.status);
+    const buffer = await resp.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheetName = SHEET_NAME && workbook.SheetNames.includes(SHEET_NAME)
+      ? SHEET_NAME
+      : workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }).filter(r => !isRowEmpty(r));
+    if (!rows.length) throw new Error('empty sheet');
+    rawRows = rows;
+    usingSample = false;
+  } catch (err){
+    rawRows = null;
+    usingSample = true;
+  }
+  document.getElementById('fetch-time').textContent = fmtTime();
+}
+
+function countForSlide(slide, index){
+  if (usingSample || !rawRows){
+    return SAMPLE_COUNTS[index] ?? 0;
+  }
+  if (slide.filterValue === null){
+    return rawRows.length;
+  }
+  return rawRows.filter(r => r[STATUS_COLUMN] === slide.filterValue).length;
+}
+
+function renderSlide(index){
+  const slide = SLIDES[index];
+  const count = countForSlide(slide, index);
+  document.getElementById('big-number').textContent = count.toLocaleString();
+  document.getElementById('label').textContent = slide.label;
+  document.getElementById('slide-num').textContent = index + 1;
+  document.getElementById('slide-total').textContent = SLIDES.length;
+  document.getElementById('warning').style.display = usingSample ? 'block' : 'none';
+}
+
+function startProgressBar(){
+  const fill = document.getElementById('progress-fill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  void fill.offsetWidth;
+  fill.style.transition = `width linear ${DWELL_SECONDS}s`;
+  fill.style.width = '100%';
+}
+
+function nextSlide(){
+  currentIndex = (currentIndex + 1) % SLIDES.length;
+  renderSlide(currentIndex);
+  startProgressBar();
+}
+
+async function init(){
+  await loadWorkbook();
+  renderSlide(currentIndex);
+  startProgressBar();
+  setInterval(nextSlide, DWELL_SECONDS * 1000);
+  setInterval(async () => {
+    await loadWorkbook();
+    renderSlide(currentIndex);
+  }, REFETCH_MINUTES * 60 * 1000);
+}
+
+init();
+</script>
+</body>
+</html>
