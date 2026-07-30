@@ -5,65 +5,120 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Open Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
-    --bg: #0a0e14;
-    --text: #e8ecf1;
-    --muted: #6b7684;
-    --accent: #ff7a45;
+    --bg: #0d0c0c;
+    --panel-edge: #262322;
+    --text: #f5f1ea;
+    --muted: #8a8580;
+    --orange: #ff7300;
+    --red: #da291c;
   }
   *{ box-sizing: border-box; margin:0; padding:0; }
   html,body{
     background: var(--bg);
     color: var(--text);
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Archivo', sans-serif;
     width: 100vw; height: 100vh;
     display:flex;
     align-items:center;
     justify-content:center;
+    position:relative;
   }
+
+  /* top accent stripe — orange/red split, nod to the brand without the mark itself */
+  #stripe{
+    position:fixed;
+    top:0; left:0; right:0;
+    height: 10px;
+    display:flex;
+  }
+  #stripe span{ flex:1; }
+  #stripe span:first-child{ background: var(--orange); }
+  #stripe span:last-child{ background: var(--red); }
+
+  #badge{
+    position:fixed;
+    top: clamp(28px, 3vw, 48px);
+    left: clamp(28px, 3vw, 48px);
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  #badge .mark{
+    font-family:'Archivo Black', sans-serif;
+    font-size: clamp(20px, 2vw, 30px);
+    color: var(--bg);
+    background: var(--orange);
+    padding: 6px 12px;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
+  }
+  #badge .badge-label{
+    font-size: clamp(13px, 1.1vw, 17px);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+  }
+
   #wrap{
     text-align:center;
   }
   #big-number{
-    font-family:'Space Grotesk', sans-serif;
-    font-weight:700;
-    font-size: clamp(120px, 22vw, 320px);
+    font-family:'Archivo Black', sans-serif;
+    font-size: clamp(140px, 24vw, 340px);
     line-height: 1;
-    color: var(--accent);
+    color: var(--orange);
     font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 60px rgba(255,115,0,0.25);
   }
   #label{
-    margin-top: 12px;
-    font-size: clamp(20px, 2.4vw, 34px);
-    letter-spacing: 0.08em;
+    margin-top: 8px;
+    font-weight: 600;
+    font-size: clamp(22px, 2.6vw, 36px);
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--text);
   }
+  #underline{
+    width: clamp(80px, 8vw, 140px);
+    height: 6px;
+    background: var(--red);
+    margin: 22px auto 0;
+    border-radius: 3px;
+  }
   #meta{
-    margin-top: 28px;
+    margin-top: 30px;
     color: var(--muted);
     font-size: clamp(13px, 1.1vw, 17px);
+    letter-spacing: 0.04em;
   }
   #warning{
     margin-top: 20px;
     display:none;
-    color: #ffd7c2;
-    background: #3a1f14;
-    border: 1px solid var(--accent);
+    color: #2a1c14;
+    background: var(--orange);
+    border: none;
+    font-weight: 600;
     padding: 8px 16px;
     border-radius: 8px;
     font-size: 14px;
-    display:inline-block;
   }
 </style>
 </head>
 <body>
+  <div id="stripe"><span></span><span></span></div>
+  <div id="badge">
+    <div class="mark">WB</div>
+    <div class="badge-label">Tech Depot</div>
+  </div>
+
   <div id="wrap">
     <div id="big-number">—</div>
     <div id="label">Open Cases</div>
+    <div id="underline"></div>
     <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Data pulled <span id="fetch-time">—</span></div>
     <div id="warning">Showing sample data — check DATA_URL in config</div>
   </div>
