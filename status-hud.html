@@ -76,6 +76,14 @@
   #wrap{
     text-align:center;
   }
+  #eyebrow{
+    font-weight: 600;
+    font-size: clamp(16px, 1.6vw, 22px);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: clamp(6px, 1vw, 14px);
+  }
   #big-number{
     font-family:'Archivo Black', sans-serif;
     font-size: clamp(140px, 24vw, 340px);
@@ -144,6 +152,7 @@
   <div id="slide-index"><b id="slide-num">1</b> / <span id="slide-total">1</span></div>
 
   <div id="wrap">
+    <div id="eyebrow">Open Cases</div>
     <div id="big-number">—</div>
     <div id="label">Loading…</div>
     <div id="underline"></div>
@@ -175,10 +184,10 @@ const DWELL_SECONDS = 15;           // how long each slide stays on screen
 const REFETCH_MINUTES = 10;         // how often to re-pull the workbook
 
 const SLIDES = [
-  { label: "Open Cases",       filterValue: null },
-  { label: "Unassigned Cases", filterValue: "Assigned" },
-  { label: "In Progress",      filterValue: "In Progress" },
-  { label: "On Hold",          filterValue: "On Hold" }
+  { label: "Total",       filterValue: null },
+  { label: "Unassigned",  filterValue: "Assigned" },
+  { label: "In Progress", filterValue: "In Progress" },
+  { label: "On Hold",     filterValue: "On Hold" }
 ];
 
 const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
