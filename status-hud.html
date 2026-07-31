@@ -212,12 +212,13 @@ const DWELL_SECONDS = 15;           // how long each slide stays on screen
 const REFETCH_MINUTES = 10;         // how often to re-pull the workbook
 
 const OWNER_COLUMN = "Owner";
+const HOLD_CODE_COLUMN = "On Hold Code";
 
 const SLIDES = [
   { label: "Total",       filterValue: null },
   { label: "Unassigned",  filterValue: "Assigned" },
   { label: "In Progress", filterValue: "In Progress", breakdownBy: OWNER_COLUMN, exclude: ["Tech Depot"] },
-  { label: "On Hold",     filterValue: "On Hold" }
+  { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [] }
 ];
 
 const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
