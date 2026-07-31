@@ -123,6 +123,46 @@
     text-transform: uppercase;
     margin-left: 8px;
   }
+  #top-list{
+    display:none;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 10px;
+    min-width: clamp(360px, 40vw, 620px);
+  }
+  #top-list .row{
+    display:flex;
+    align-items:center;
+    gap: 20px;
+    background: #17130f;
+    border: 1px solid var(--panel-edge);
+    border-radius: 14px;
+    padding: 14px 26px;
+    text-align:left;
+  }
+  #top-list .row.rank-1{
+    border-color: var(--orange);
+    background: #201509;
+  }
+  #top-list .rank{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(24px, 2.6vw, 36px);
+    color: var(--muted);
+    width: 1.4em;
+    flex-shrink: 0;
+  }
+  #top-list .row.rank-1 .rank{ color: var(--orange); }
+  #top-list .cat-name{
+    flex:1;
+    font-size: clamp(18px, 1.8vw, 26px);
+    font-weight: 600;
+    color: var(--text);
+  }
+  #top-list .cat-count{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(26px, 2.8vw, 40px);
+    color: var(--orange);
+  }
   #meta{
     margin-top: 30px;
     color: var(--muted);
@@ -200,6 +240,7 @@
     <div id="label">Loading…</div>
     <div id="underline"></div>
     <div id="percent-note"></div>
+    <div id="top-list"></div>
     <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Data pulled <span id="fetch-time">—</span></div>
     <div id="breakdown"></div>
     <div id="warning">Showing sample data — check DATA_URL in config</div>
@@ -230,12 +271,14 @@ const REFETCH_MINUTES = 10;         // how often to re-pull the workbook
 
 const OWNER_COLUMN = "Owner";
 const HOLD_CODE_COLUMN = "On Hold Code";
+const CSI_COLUMN = "CSI Sub Category";
 
 const SLIDES = [
   { label: "Total",       filterValue: null },
   { label: "Unassigned",  filterValue: "Assigned", showPercentOfTotal: true },
   { label: "In Progress", filterValue: "In Progress", breakdownBy: OWNER_COLUMN, exclude: ["Tech Depot"] },
-  { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [] }
+  { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [] },
+  { label: "Top Ticket Drivers", type: "topN", column: CSI_COLUMN, topN: 3 }
 ];
 
 const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
@@ -243,6 +286,11 @@ const SAMPLE_BREAKDOWN = [
   { name: "Sarah Lucio", count: 9 },
   { name: "John Widner", count: 8 },
   { name: "Lawrence Conway", count: 7 }
+];
+const SAMPLE_TOP_DRIVERS = [
+  { name: "HHPOS - Payment Device", count: 19 },
+  { name: "POS - Payment Device", count: 11 },
+  { name: "TPHC Printer", count: 7 }
 ];
 /* ============================================================ */
 
@@ -309,16 +357,67 @@ function breakdownForSlide(slide){
     .sort((a, b) => b.count - a.count);
 }
 
+function topDriversForSlide(slide){
+  if (slide.type !== 'topN') return null;
+  if (usingSample || !rawRows){
+    return SAMPLE_TOP_DRIVERS.slice(0, slide.topN || 3);
+  }
+  const counts = {};
+  rawRows.forEach(r => {
+    const key = r[slide.column] || '(uncategorized)';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const sorted = Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const n = slide.topN || 3;
+  if (sorted.length <= n) return sorted;
+
+  // include every entry tied with the Nth-place count, not just a hard cutoff
+  const cutoffCount = sorted[n - 1].count;
+  return sorted.filter((item, i) => i < n || item.count === cutoffCount);
+}
+
 function renderSlide(index){
   const slide = SLIDES[index];
-  const count = countForSlide(slide, index);
-  document.getElementById('big-number').textContent = count.toLocaleString();
-  document.getElementById('label').textContent = slide.label;
   document.getElementById('slide-num').textContent = index + 1;
   document.getElementById('slide-total').textContent = SLIDES.length;
   document.getElementById('warning').style.display = usingSample ? 'block' : 'none';
 
+  const numEl = document.getElementById('big-number');
+  const labelEl = document.getElementById('label');
+  const underlineEl = document.getElementById('underline');
+  const topListEl = document.getElementById('top-list');
+  const percentEl = document.getElementById('percent-note');
   const breakdownEl = document.getElementById('breakdown');
+
+  if (slide.type === 'topN'){
+    numEl.style.display = 'none';
+    underlineEl.style.display = 'none';
+    percentEl.style.display = 'none';
+    breakdownEl.style.display = 'none';
+    labelEl.textContent = slide.label;
+
+    const drivers = topDriversForSlide(slide);
+    topListEl.innerHTML = drivers.map((item, i) => {
+      const rank = drivers.filter(d => d.count > item.count).length + 1;
+      return `<div class="row rank-${rank}"><span class="rank">#${rank}</span><span class="cat-name">${item.name}</span><span class="cat-count">${item.count}</span></div>`;
+    }).join('');
+    topListEl.style.display = 'flex';
+    return;
+  }
+
+  // standard single-number slides
+  numEl.style.display = 'block';
+  underlineEl.style.display = 'block';
+  topListEl.style.display = 'none';
+  topListEl.innerHTML = '';
+
+  const count = countForSlide(slide, index);
+  numEl.textContent = count.toLocaleString();
+  labelEl.textContent = slide.label;
+
   const breakdown = breakdownForSlide(slide);
   if (breakdown && breakdown.length){
     breakdownEl.innerHTML = breakdown.map(item =>
@@ -330,7 +429,6 @@ function renderSlide(index){
     breakdownEl.style.display = 'none';
   }
 
-  const percentEl = document.getElementById('percent-note');
   if (slide.showPercentOfTotal){
     const totalCount = usingSample || !rawRows ? SAMPLE_COUNTS[0] : rawRows.length;
     const pct = totalCount ? ((count / totalCount) * 100).toFixed(1) : '0.0';
