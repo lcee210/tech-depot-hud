@@ -478,12 +478,30 @@ async function init(){
   }, REFETCH_MINUTES * 60 * 1000);
 }
 
+async function requestWakeLock(){
+  try {
+    if ('wakeLock' in navigator) {
+      await navigator.wakeLock.request('screen');
+    }
+  } catch (err) {
+    // Wake Lock not available/permitted in this environment — the
+    // "Allow App to Manage Power" kiosk policy needs to be on for
+    // this to succeed.
+  }
+}
+
+// re-request if the lock gets released (e.g. after certain browser events)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
 function updateClock(){
   const el = document.getElementById('clock');
   if (el) el.textContent = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 init();
+requestWakeLock();
 updateClock();
 setInterval(updateClock, 1000);
 </script>
