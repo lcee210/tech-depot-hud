@@ -169,6 +169,13 @@
     font-size: clamp(15px, 1.8vh, 22px);
     letter-spacing: 0.04em;
   }
+  #file-modified{
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: clamp(13px, 1.5vh, 18px);
+    letter-spacing: 0.04em;
+    opacity: 0.75;
+  }
   #breakdown{
     margin-top: 26px;
     display:flex;
@@ -251,7 +258,8 @@
     <div id="underline"></div>
     <div id="percent-note"></div>
     <div id="top-list"></div>
-    <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Data pulled <span id="fetch-time">—</span></div>
+    <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Last checked <span id="fetch-time">—</span></div>
+    <div id="file-modified"></div>
     <div id="breakdown"></div>
     <div id="warning">Showing sample data — check DATA_URL in config</div>
   </div>
@@ -322,6 +330,16 @@ async function loadWorkbook(){
     const cacheBustUrl = DATA_URL + (DATA_URL.includes('?') ? '&' : '?') + 'v=' + Date.now();
     const resp = await fetch(cacheBustUrl, { cache: 'no-store' });
     if (!resp.ok) throw new Error('fetch failed: ' + resp.status);
+
+    const lastModHeader = resp.headers.get('last-modified');
+    const fileModEl = document.getElementById('file-modified');
+    if (lastModHeader) {
+      const d = new Date(lastModHeader);
+      fileModEl.textContent = 'File last updated ' + d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    } else {
+      fileModEl.textContent = '';
+    }
+
     const buffer = await resp.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });
     const sheetName = SHEET_NAME && workbook.SheetNames.includes(SHEET_NAME)
