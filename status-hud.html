@@ -107,6 +107,22 @@
     margin: 22px auto 0;
     border-radius: 3px;
   }
+  #percent-note{
+    margin-top: 18px;
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(20px, 2vw, 28px);
+    color: var(--orange);
+    display:none;
+  }
+  #percent-note .of-total{
+    font-family: 'Archivo', sans-serif;
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 0.55em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-left: 8px;
+  }
   #meta{
     margin-top: 30px;
     color: var(--muted);
@@ -183,6 +199,7 @@
     <div id="big-number">—</div>
     <div id="label">Loading…</div>
     <div id="underline"></div>
+    <div id="percent-note"></div>
     <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Data pulled <span id="fetch-time">—</span></div>
     <div id="breakdown"></div>
     <div id="warning">Showing sample data — check DATA_URL in config</div>
@@ -216,7 +233,7 @@ const HOLD_CODE_COLUMN = "On Hold Code";
 
 const SLIDES = [
   { label: "Total",       filterValue: null },
-  { label: "Unassigned",  filterValue: "Assigned" },
+  { label: "Unassigned",  filterValue: "Assigned", showPercentOfTotal: true },
   { label: "In Progress", filterValue: "In Progress", breakdownBy: OWNER_COLUMN, exclude: ["Tech Depot"] },
   { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [] }
 ];
@@ -311,6 +328,17 @@ function renderSlide(index){
   } else {
     breakdownEl.innerHTML = '';
     breakdownEl.style.display = 'none';
+  }
+
+  const percentEl = document.getElementById('percent-note');
+  if (slide.showPercentOfTotal){
+    const totalCount = usingSample || !rawRows ? SAMPLE_COUNTS[0] : rawRows.length;
+    const pct = totalCount ? ((count / totalCount) * 100).toFixed(1) : '0.0';
+    percentEl.innerHTML = `${pct}%<span class="of-total">of Total Open Cases</span>`;
+    percentEl.style.display = 'block';
+  } else {
+    percentEl.innerHTML = '';
+    percentEl.style.display = 'none';
   }
 }
 
