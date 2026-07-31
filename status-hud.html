@@ -32,7 +32,7 @@
   #stripe{
     position:fixed;
     top:0; left:0; right:0;
-    height: 10px;
+    height: 14px;
     display:flex;
   }
   #stripe span{ flex:1; }
@@ -49,7 +49,7 @@
   }
   #badge .mark{
     font-family:'Archivo Black', sans-serif;
-    font-size: clamp(20px, 2vw, 30px);
+    font-size: clamp(24px, 2.6vh, 36px);
     color: var(--bg);
     background: var(--orange);
     padding: 6px 12px;
@@ -57,7 +57,7 @@
     letter-spacing: 0.02em;
   }
   #badge .badge-label{
-    font-size: clamp(13px, 1.1vw, 17px);
+    font-size: clamp(15px, 1.6vh, 20px);
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.14em;
@@ -69,7 +69,7 @@
     right: clamp(28px, 3vw, 48px);
     font-family:'Archivo Black', sans-serif;
     color: var(--muted);
-    font-size: clamp(14px, 1.3vw, 20px);
+    font-size: clamp(16px, 1.8vh, 24px);
   }
   #slide-index b{ color: var(--orange); }
 
@@ -78,7 +78,7 @@
   }
   #eyebrow{
     font-weight: 600;
-    font-size: clamp(16px, 1.6vw, 22px);
+    font-size: clamp(18px, 2vh, 26px);
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: var(--muted);
@@ -86,7 +86,7 @@
   }
   #big-number{
     font-family:'Archivo Black', sans-serif;
-    font-size: clamp(140px, 24vw, 340px);
+    font-size: clamp(180px, 34vh, 560px);
     line-height: 1;
     color: var(--orange);
     font-variant-numeric: tabular-nums;
@@ -95,14 +95,14 @@
   #label{
     margin-top: 8px;
     font-weight: 600;
-    font-size: clamp(22px, 2.6vw, 36px);
+    font-size: clamp(28px, 5vh, 50px);
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--text);
   }
   #underline{
-    width: clamp(80px, 8vw, 140px);
-    height: 6px;
+    width: clamp(100px, 10vw, 180px);
+    height: 8px;
     background: var(--red);
     margin: 22px auto 0;
     border-radius: 3px;
@@ -110,7 +110,7 @@
   #percent-note{
     margin-top: 18px;
     font-family: 'Archivo Black', sans-serif;
-    font-size: clamp(20px, 2vw, 28px);
+    font-size: clamp(30px, 5.5vh, 52px);
     color: var(--orange);
     display:none;
   }
@@ -128,7 +128,7 @@
     flex-direction: column;
     gap: 18px;
     margin-top: 10px;
-    min-width: clamp(360px, 40vw, 620px);
+    min-width: clamp(500px, 46vw, 900px);
   }
   #top-list .row{
     display:flex;
@@ -146,7 +146,7 @@
   }
   #top-list .rank{
     font-family: 'Archivo Black', sans-serif;
-    font-size: clamp(24px, 2.6vw, 36px);
+    font-size: clamp(30px, 5vh, 48px);
     color: var(--muted);
     width: 1.4em;
     flex-shrink: 0;
@@ -154,19 +154,19 @@
   #top-list .row.rank-1 .rank{ color: var(--orange); }
   #top-list .cat-name{
     flex:1;
-    font-size: clamp(18px, 1.8vw, 26px);
+    font-size: clamp(22px, 3.4vh, 34px);
     font-weight: 600;
     color: var(--text);
   }
   #top-list .cat-count{
     font-family: 'Archivo Black', sans-serif;
-    font-size: clamp(26px, 2.8vw, 40px);
+    font-size: clamp(32px, 5.4vh, 52px);
     color: var(--orange);
   }
   #meta{
     margin-top: 30px;
     color: var(--muted);
-    font-size: clamp(13px, 1.1vw, 17px);
+    font-size: clamp(15px, 1.8vh, 22px);
     letter-spacing: 0.04em;
   }
   #breakdown{
@@ -187,13 +187,13 @@
     padding: 8px 18px;
   }
   #breakdown .chip .owner-name{
-    font-size: clamp(14px, 1.3vw, 19px);
+    font-size: clamp(18px, 2.6vh, 26px);
     font-weight: 500;
     color: var(--text);
   }
   #breakdown .chip .owner-count{
     font-family: 'Archivo Black', sans-serif;
-    font-size: clamp(16px, 1.5vw, 22px);
+    font-size: clamp(20px, 3vh, 30px);
     color: var(--orange);
   }
   #warning{
@@ -206,6 +206,16 @@
     padding: 8px 16px;
     border-radius: 8px;
     font-size: 14px;
+  }
+
+  #clock{
+    position:fixed;
+    right: clamp(28px, 3vw, 48px);
+    bottom: clamp(46px, 6vh, 68px);
+    font-family:'Archivo Black', sans-serif;
+    color: var(--muted);
+    font-size: clamp(18px, 2.2vh, 28px);
+    font-variant-numeric: tabular-nums;
   }
 
   #progress-track{
@@ -246,6 +256,7 @@
     <div id="warning">Showing sample data — check DATA_URL in config</div>
   </div>
 
+  <div id="clock">--:--</div>
   <div id="progress-track"><div id="progress-fill"></div></div>
 
 <script>
@@ -466,7 +477,14 @@ async function init(){
   }, REFETCH_MINUTES * 60 * 1000);
 }
 
+function updateClock(){
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
 init();
+updateClock();
+setInterval(updateClock, 1000);
 </script>
 </body>
 </html>
