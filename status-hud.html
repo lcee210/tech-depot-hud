@@ -278,7 +278,8 @@ const DATA_URL = "data.xlsx";
 const SHEET_NAME = "";              // leave blank to use the first tab
 const STATUS_COLUMN = "Status Reason";
 const DWELL_SECONDS = 15;           // how long each slide stays on screen
-const REFETCH_MINUTES = 10;         // how often to re-pull the workbook
+const SYNC_MINUTE_PAST_HOUR = 2;    // refetch this many minutes after each hour,
+                                     // to line up with the hourly export script
 
 const OWNER_COLUMN = "Owner";
 const HOLD_CODE_COLUMN = "On Hold Code";
@@ -467,15 +468,35 @@ function nextSlide(){
   startProgressBar();
 }
 
+function msUntilNextSyncPoint(){
+  const now = new Date();
+  const next = new Date(now);
+  next.setMinutes(SYNC_MINUTE_PAST_HOUR, 0, 0);
+  if (next <= now){
+    next.setHours(next.getHours() + 1);
+  }
+  return next - now;
+}
+
+function scheduleHourlySync(){
+  const delay = msUntilNextSyncPoint();
+  setTimeout(async () => {
+    await loadWorkbook();
+    renderSlide(currentIndex);
+    // now that we're aligned, repeat every hour on the dot
+    setInterval(async () => {
+      await loadWorkbook();
+      renderSlide(currentIndex);
+    }, 60 * 60 * 1000);
+  }, delay);
+}
+
 async function init(){
   await loadWorkbook();
   renderSlide(currentIndex);
   startProgressBar();
   setInterval(nextSlide, DWELL_SECONDS * 1000);
-  setInterval(async () => {
-    await loadWorkbook();
-    renderSlide(currentIndex);
-  }, REFETCH_MINUTES * 60 * 1000);
+  scheduleHourlySync();
 }
 
 async function requestWakeLock(){
