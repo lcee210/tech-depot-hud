@@ -319,7 +319,8 @@ function isRowEmpty(row){
 
 async function loadWorkbook(){
   try {
-    const resp = await fetch(DATA_URL);
+    const cacheBustUrl = DATA_URL + (DATA_URL.includes('?') ? '&' : '?') + 'v=' + Date.now();
+    const resp = await fetch(cacheBustUrl, { cache: 'no-store' });
     if (!resp.ok) throw new Error('fetch failed: ' + resp.status);
     const buffer = await resp.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });
