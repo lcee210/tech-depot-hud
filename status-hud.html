@@ -217,6 +217,14 @@
     font-size: clamp(18px, 2.2vh, 28px);
     font-variant-numeric: tabular-nums;
   }
+  #date{
+    position:fixed;
+    left: clamp(28px, 3vw, 48px);
+    bottom: clamp(46px, 6vh, 68px);
+    font-family:'Archivo Black', sans-serif;
+    color: var(--muted);
+    font-size: clamp(18px, 2.2vh, 28px);
+  }
 
   #progress-track{
     position:fixed;
@@ -256,6 +264,7 @@
     <div id="warning">Showing sample data — check DATA_URL in config</div>
   </div>
 
+  <div id="date">-- --- --</div>
   <div id="clock">--:--</div>
   <div id="progress-track"><div id="progress-fill"></div></div>
 
@@ -280,6 +289,7 @@ const STATUS_COLUMN = "Status Reason";
 const DWELL_SECONDS = 15;           // how long each slide stays on screen
 const SYNC_MINUTE_PAST_HOUR = 2;    // refetch this many minutes after each hour,
                                      // to line up with the hourly export script
+const FALLBACK_REFETCH_MINUTES = 15; // safety-net refetch, independent of the above
 
 const OWNER_COLUMN = "Owner";
 const HOLD_CODE_COLUMN = "On Hold Code";
@@ -497,6 +507,15 @@ async function init(){
   startProgressBar();
   setInterval(nextSlide, DWELL_SECONDS * 1000);
   scheduleHourlySync();
+
+  // Fallback: independent of the aligned hourly sync above, also check
+  // every 15 minutes regardless. If the aligned trigger ever gets missed
+  // (slow git push, tab throttling, a network blip), this guarantees the
+  // data is never more than ~15 minutes stale as a worst case.
+  setInterval(async () => {
+    await loadWorkbook();
+    renderSlide(currentIndex);
+  }, FALLBACK_REFETCH_MINUTES * 60 * 1000);
 }
 
 async function requestWakeLock(){
@@ -521,10 +540,17 @@ function updateClock(){
   if (el) el.textContent = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+function updateDate(){
+  const el = document.getElementById('date');
+  if (el) el.textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 init();
 requestWakeLock();
 updateClock();
+updateDate();
 setInterval(updateClock, 1000);
+setInterval(updateDate, 60 * 1000);
 </script>
 </body>
 </html>
