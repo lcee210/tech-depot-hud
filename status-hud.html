@@ -163,6 +163,27 @@
     font-size: clamp(32px, 5.4vh, 52px);
     color: var(--orange);
   }
+  #top-list .empty-note{
+    color: var(--muted);
+    font-size: clamp(18px, 2.6vh, 28px);
+    padding: 20px 0;
+  }
+  #quote-block{
+    display:none;
+    max-width: 62vw;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 600;
+    font-style: italic;
+    font-size: clamp(28px, 5vh, 54px);
+    line-height: 1.3;
+    color: var(--text);
+    text-align:center;
+  }
+  #quote-block::before, #quote-block::after{
+    color: var(--orange);
+  }
+  #quote-block::before{ content: '“'; }
+  #quote-block::after{ content: '”'; }
   #meta{
     margin-top: 30px;
     color: var(--muted);
@@ -259,7 +280,8 @@
     <div id="underline"></div>
     <div id="percent-note"></div>
     <div id="top-list"></div>
-    <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Updates Every Hour</div>
+    <div id="quote-block"></div>
+    <div id="meta">SNAPSHOT — NOT LIVE &nbsp;·&nbsp; Updates Regularly</div>
     <div id="breakdown"></div>
     <div id="warning">Showing sample data — check DATA_URL in config</div>
   </div>
@@ -286,21 +308,39 @@
 const DATA_URL = "data.xlsx";
 const SHEET_NAME = "";              // leave blank to use the first tab
 const STATUS_COLUMN = "Status Reason";
-const DWELL_SECONDS = 15;           // how long each slide stays on screen
+const DWELL_SECONDS = 10;           // how long each slide stays on screen
 const SYNC_MINUTE_PAST_HOUR = 2;    // refetch this many minutes after each hour,
                                      // to line up with the hourly export script
-const FALLBACK_REFETCH_MINUTES = 15; // safety-net refetch, independent of the above
+const FALLBACK_REFETCH_MINUTES = 5; // safety-net refetch, independent of the above
 
 const OWNER_COLUMN = "Owner";
 const HOLD_CODE_COLUMN = "On Hold Code";
 const CSI_COLUMN = "CSI Sub Category";
+const CUSTOMER_COLUMN = "Customer";
 
 const SLIDES = [
   { label: "Total",       filterValue: null },
   { label: "Unassigned",  filterValue: "Assigned", showPercentOfTotal: true },
-  { label: "In Progress", filterValue: "In Progress", breakdownBy: OWNER_COLUMN, exclude: ["Tech Depot"] },
-  { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [] },
-  { label: "Top Ticket Drivers", type: "topN", column: CSI_COLUMN, topN: 3 }
+  { label: "In Progress", filterValue: "In Progress", breakdownBy: OWNER_COLUMN, exclude: ["Tech Depot"],
+    sampleBreakdown: [
+      { name: "Sarah Lucio", count: 14 },
+      { name: "John Widner", count: 9 },
+      { name: "Lawrence Conway", count: 3 }
+    ] },
+  { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [],
+    sampleBreakdown: [
+      { name: "Waiting for Customer", count: 26 },
+      { name: "Waiting for Hardware", count: 7 },
+      { name: "Waiting for Vendor", count: 2 }
+    ] },
+  { label: "Top Ticket Drivers", type: "topN", column: CSI_COLUMN, topN: 3 },
+  { label: "Customers With Multiple Cases", type: "topN", column: CUSTOMER_COLUMN, topN: 5, minCount: 2,
+    sampleOverride: [
+      { name: "WB Unit 0816", count: 3 },
+      { name: "WB Franchise Unit 0369", count: 2 },
+      { name: "WB Unit 0840", count: 2 }
+    ] },
+  { label: "Did You Know", type: "fact" }
 ];
 
 const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
@@ -363,7 +403,7 @@ function countForSlide(slide, index){
 function breakdownForSlide(slide){
   if (!slide.breakdownBy) return null;
   if (usingSample || !rawRows){
-    return SAMPLE_BREAKDOWN;
+    return slide.sampleBreakdown || SAMPLE_BREAKDOWN;
   }
   const exclude = slide.exclude || [];
   const matching = rawRows.filter(r =>
@@ -380,19 +420,105 @@ function breakdownForSlide(slide){
     .sort((a, b) => b.count - a.count);
 }
 
+const QUOTES = [
+  "Every ticket closed is one less thing standing between someone and their job.",
+  "Slow and steady clears the queue.",
+  "The best fix is the one that doesn't come back.",
+  "Small updates, fewer surprises.",
+  "A calm queue is a well-run queue.",
+  "Progress beats perfection — keep the tickets moving.",
+  "Good documentation today saves a headache tomorrow."
+];
+
+function daysBetween(date1, date2){
+  const ms = Math.abs(date2 - date1);
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
+
+function excelDateToJS(value){
+  // Handles both real Date objects and Excel serial numbers
+  if (value instanceof Date) return value;
+  if (typeof value === 'number') {
+    return new Date(Math.round((value - 25569) * 86400 * 1000));
+  }
+  const parsed = new Date(value);
+  return isNaN(parsed) ? null : parsed;
+}
+
+function getComputedFacts(){
+  const facts = [];
+  if (usingSample || !rawRows || !rawRows.length) return facts;
+
+  // Oldest open case
+  let oldest = null;
+  rawRows.forEach(r => {
+    const created = excelDateToJS(r['Created On']);
+    if (created && (!oldest || created < oldest.date)){
+      oldest = { date: created, caseNumber: r['Case Number'] || '' };
+    }
+  });
+  if (oldest){
+    const age = daysBetween(oldest.date, new Date());
+    facts.push({
+      kind: 'number',
+      eyebrow: 'Case Insight',
+      value: age,
+      label: 'Days Old — Oldest Open Case',
+      sub: oldest.caseNumber
+    });
+  }
+
+  // Busiest agent overall (excluding Tech Depot)
+  const ownerCounts = {};
+  rawRows.forEach(r => {
+    const owner = r[OWNER_COLUMN];
+    if (!owner || owner === 'Tech Depot') return;
+    ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
+  });
+  const busiest = Object.entries(ownerCounts).sort((a, b) => b[1] - a[1])[0];
+  if (busiest){
+    facts.push({
+      kind: 'number',
+      eyebrow: 'Case Insight',
+      value: busiest[1],
+      label: `Open Cases — ${busiest[0]}`,
+      sub: 'Most cases currently assigned'
+    });
+  }
+
+  return facts;
+}
+
+function getRandomFact(){
+  const computed = getComputedFacts();
+  const pool = [
+    ...computed,
+    ...QUOTES.map(q => ({ kind: 'quote', text: q }))
+  ];
+  if (!pool.length){
+    return { kind: 'quote', text: QUOTES[Math.floor(Math.random() * QUOTES.length)] };
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function topDriversForSlide(slide){
   if (slide.type !== 'topN') return null;
   if (usingSample || !rawRows){
-    return SAMPLE_TOP_DRIVERS.slice(0, slide.topN || 3);
+    return (slide.sampleOverride || SAMPLE_TOP_DRIVERS).slice(0, slide.topN || 3);
   }
   const counts = {};
   rawRows.forEach(r => {
     const key = r[slide.column] || '(uncategorized)';
     counts[key] = (counts[key] || 0) + 1;
   });
-  const sorted = Object.entries(counts)
+  let sorted = Object.entries(counts)
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count);
+
+  if (slide.minCount){
+    sorted = sorted.filter(item => item.count >= slide.minCount);
+  }
+  if (!sorted.length) return [];
 
   const n = slide.topN || 3;
   if (sorted.length <= n) return sorted;
@@ -414,28 +540,59 @@ function renderSlide(index){
   const topListEl = document.getElementById('top-list');
   const percentEl = document.getElementById('percent-note');
   const breakdownEl = document.getElementById('breakdown');
+  const quoteEl = document.getElementById('quote-block');
+  const eyebrowEl = document.getElementById('eyebrow');
+
+  // reset shared elements to a known state before each slide's branch fills them in
+  numEl.style.display = 'none';
+  underlineEl.style.display = 'none';
+  percentEl.style.display = 'none';
+  breakdownEl.style.display = 'none';
+  topListEl.style.display = 'none';
+  topListEl.innerHTML = '';
+  quoteEl.style.display = 'none';
+  quoteEl.textContent = '';
+  eyebrowEl.textContent = 'Open Cases';
 
   if (slide.type === 'topN'){
-    numEl.style.display = 'none';
-    underlineEl.style.display = 'none';
-    percentEl.style.display = 'none';
-    breakdownEl.style.display = 'none';
     labelEl.textContent = slide.label;
-
     const drivers = topDriversForSlide(slide);
-    topListEl.innerHTML = drivers.map((item, i) => {
-      const rank = drivers.filter(d => d.count > item.count).length + 1;
-      return `<div class="row rank-${rank}"><span class="rank">#${rank}</span><span class="cat-name">${item.name}</span><span class="cat-count">${item.count}</span></div>`;
-    }).join('');
+    if (!drivers.length){
+      topListEl.innerHTML = `<div class="empty-note">No entries currently match this view.</div>`;
+    } else {
+      topListEl.innerHTML = drivers.map((item) => {
+        const rank = drivers.filter(d => d.count > item.count).length + 1;
+        return `<div class="row rank-${rank}"><span class="rank">#${rank}</span><span class="cat-name">${item.name}</span><span class="cat-count">${item.count}</span></div>`;
+      }).join('');
+    }
     topListEl.style.display = 'flex';
+    return;
+  }
+
+  if (slide.type === 'fact'){
+    const fact = getRandomFact();
+    labelEl.textContent = slide.label || 'Did You Know';
+    if (fact.kind === 'quote'){
+      eyebrowEl.textContent = 'A Little Motivation';
+      quoteEl.textContent = fact.text;
+      quoteEl.style.display = 'block';
+    } else {
+      eyebrowEl.textContent = fact.eyebrow || 'Case Insight';
+      numEl.textContent = fact.value.toLocaleString();
+      numEl.style.display = 'block';
+      underlineEl.style.display = 'block';
+      labelEl.textContent = fact.label;
+      if (fact.sub){
+        percentEl.innerHTML = `<span class="of-total" style="margin-left:0; font-size:0.5em;">${fact.sub}</span>`;
+        percentEl.style.display = 'block';
+      }
+    }
     return;
   }
 
   // standard single-number slides
   numEl.style.display = 'block';
   underlineEl.style.display = 'block';
-  topListEl.style.display = 'none';
-  topListEl.innerHTML = '';
 
   const count = countForSlide(slide, index);
   numEl.textContent = count.toLocaleString();
