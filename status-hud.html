@@ -342,7 +342,7 @@
    To add more slides later (you mentioned more are coming),
    just add another { label, filterValue } entry below.
    ============================================================ */
-const DATA_URL = "data.xlsx";
+const DATA_URL = "https://raw.githubusercontent.com/lcee210/tech-depot-hud/main/data.xlsx";
 const SHEET_NAME = "";              // leave blank to use the first tab
 const STATUS_COLUMN = "Status Reason";
 const DWELL_SECONDS = 10;           // how long each slide stays on screen
@@ -356,12 +356,12 @@ const CSI_COLUMN = "CSI Sub Category";
 const CUSTOMER_COLUMN = "Customer";
 
 // ── Resolved-cases source (separate Dynamics view/export) ──
-const RESOLVED_URL = "resolved.xlsx";
+const RESOLVED_URL = "https://raw.githubusercontent.com/lcee210/tech-depot-hud/main/resolved.xlsx";
 const RESOLVED_SHEET_NAME = "";
 const RESOLVED_DATE_COLUMN = "Resolved On";  // verify against your real export
 
 // ── Ongoing-projects source (manually updated) ──
-const PROJECTS_URL = "projects.xlsx";
+const PROJECTS_URL = "https://raw.githubusercontent.com/lcee210/tech-depot-hud/main/projects.xlsx";
 const PROJECTS_SHEET_NAME = "";
 const PROJECT_NAME_COLUMN = "Project";
 const PROJECT_SITE_COLUMN = "Site/Unit";
