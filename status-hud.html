@@ -188,29 +188,46 @@
   #project-list{
     display:none;
     flex-direction: column;
-    gap: 14px;
+    gap: 22px;
     margin-top: 10px;
-    min-width: clamp(420px, 46vw, 780px);
-    max-height: 52vh;
+    min-width: clamp(440px, 48vw, 820px);
+    max-height: 58vh;
     overflow: hidden;
-  }
-  #project-list .row{
     text-align:left;
+  }
+  .project-group-title{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(18px, 2.4vh, 26px);
+    color: var(--orange);
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+  }
+  .unit-row{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 16px;
     background: #17130f;
     border: 1px solid var(--panel-edge);
-    border-left: 4px solid var(--orange);
-    border-radius: 10px;
-    padding: 12px 22px;
+    border-radius: 8px;
+    padding: 9px 18px;
+    margin-bottom: 8px;
   }
-  #project-list .proj-name{
-    font-size: clamp(19px, 2.6vh, 28px);
-    font-weight: 600;
+  .unit-info{
+    font-size: clamp(15px, 2vh, 20px);
     color: var(--text);
   }
-  #project-list .proj-site{
-    margin-top: 3px;
-    font-size: clamp(14px, 1.8vh, 19px);
-    color: var(--muted);
+  .status-badge{
+    flex-shrink: 0;
+    font-weight: 600;
+    font-size: clamp(12px, 1.4vh, 15px);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bg);
+    background: var(--orange);
+    padding: 4px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
   }
   #project-footer{
     display:none;
@@ -364,8 +381,9 @@ const RESOLVED_DATE_COLUMN = "Resolved On";  // verify against your real export
 const PROJECTS_URL = "https://raw.githubusercontent.com/lcee210/tech-depot-hud/main/projects.xlsx";
 const PROJECTS_SHEET_NAME = "";
 const PROJECT_NAME_COLUMN = "Project";
-const PROJECT_SITE_COLUMN = "Site/Unit";
-const PROJECT_STATUS_COLUMN = "Status";  // expects "Ongoing" or "Completed"
+const UNIT_COLUMN = "Unit";
+const LOCATION_COLUMN = "Location";
+const PROJECT_STATUS_COLUMN = "Status";  // e.g. "Staging" — one row per unit, grouped by project below
 
 const SLIDES = [
   { label: "Total",       filterValue: null },
@@ -390,9 +408,7 @@ const SLIDES = [
       { name: "WB Unit 0840", count: 2 }
     ] },
   { label: "Did You Know", type: "fact" },
-  { label: "Cases Resolved", type: "resolvedCycle", source: "resolved" }
-  // Ongoing Projects slide removed for now — add back once projects.xlsx is ready:
-  // { label: "Ongoing Projects", type: "projects", source: "projects" }
+  { label: "Ongoing Projects", type: "projects", source: "projects" }
 ];
 
 const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
@@ -407,12 +423,18 @@ const SAMPLE_TOP_DRIVERS = [
   { name: "TPHC Printer", count: 7 }
 ];
 const SAMPLE_RESOLVED_COUNTS = { day: 6, week: 31, month: 118, year: 742 };
-const SAMPLE_PROJECTS = [
-  { name: "POS Terminal Refresh", site: "Units 0410, 0522, 0816", status: "Ongoing" },
-  { name: "Kitchen Display Rollout", site: "DFW Region", status: "Ongoing" },
-  { name: "Drive-Thru Timer Upgrade", site: "Unit 1204", status: "Ongoing" }
+const SAMPLE_PROJECT_GROUPS = [
+  {
+    name: "HHPOS Tablet Upgrade",
+    units: [
+      { unit: "209", location: "Richardson, TX", status: "Staging" },
+      { unit: "41",  location: "Harlingen, TX",  status: "Staging" },
+      { unit: "85",  location: "Harlingen, TX",  status: "Live" },
+      { unit: "504", location: "Harlingen, TX",  status: "Staging" },
+      { unit: "31",  location: "Corpus Christi, TX", status: "Staging" }
+    ]
+  }
 ];
-const SAMPLE_PROJECTS_COMPLETED_COUNT = 5;
 /* ============================================================ */
 
 let rawRows = null;
@@ -422,7 +444,6 @@ let usingSampleResolved = false;
 let projectRows = null;
 let usingSampleProjects = false;
 let currentIndex = 0;
-let resolvedCycleIndex = 0;
 
 function fmtTime(){
   return new Date().toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -469,7 +490,14 @@ async function loadResolvedWorkbook(){
 
 async function loadProjectsWorkbook(){
   try {
-    projectRows = await fetchWorkbookRows(PROJECTS_URL, PROJECTS_SHEET_NAME);
+    const rows = await fetchWorkbookRows(PROJECTS_URL, PROJECTS_SHEET_NAME);
+    // Trim whitespace from column headers — real-world exports sometimes
+    // have trailing spaces (e.g. "Unit " instead of "Unit").
+    projectRows = rows.map(row => {
+      const cleaned = {};
+      Object.keys(row).forEach(key => { cleaned[key.trim()] = row[key]; });
+      return cleaned;
+    });
     usingSampleProjects = false;
   } catch (err){
     projectRows = null;
@@ -515,16 +543,6 @@ function breakdownForSlide(slide){
     .sort((a, b) => b.count - a.count);
 }
 
-const QUOTES = [
-  "Every ticket closed is one less thing standing between someone and their job.",
-  "Slow and steady clears the queue.",
-  "The best fix is the one that doesn't come back.",
-  "Small updates, fewer surprises.",
-  "A calm queue is a well-run queue.",
-  "Progress beats perfection — keep the tickets moving.",
-  "Good documentation today saves a headache tomorrow."
-];
-
 function daysBetween(date1, date2){
   const ms = Math.abs(date2 - date1);
   return Math.floor(ms / (1000 * 60 * 60 * 24));
@@ -542,57 +560,64 @@ function excelDateToJS(value){
 
 function getComputedFacts(){
   const facts = [];
-  if (usingSample || !rawRows || !rawRows.length) return facts;
 
-  // Oldest open case
-  let oldest = null;
-  rawRows.forEach(r => {
-    const created = excelDateToJS(r['Created On']);
-    if (created && (!oldest || created < oldest.date)){
-      oldest = { date: created, caseNumber: r['Case Number'] || '' };
+  if (!usingSample && rawRows && rawRows.length){
+    // Oldest open case
+    let oldest = null;
+    rawRows.forEach(r => {
+      const created = excelDateToJS(r['Created On']);
+      if (created && (!oldest || created < oldest.date)){
+        oldest = { date: created, caseNumber: r['Case Number'] || '' };
+      }
+    });
+    if (oldest){
+      const age = daysBetween(oldest.date, new Date());
+      facts.push({
+        kind: 'number',
+        eyebrow: 'Case Insight',
+        value: age,
+        label: 'Days Old — Oldest Open Case',
+        sub: oldest.caseNumber
+      });
     }
-  });
-  if (oldest){
-    const age = daysBetween(oldest.date, new Date());
-    facts.push({
-      kind: 'number',
-      eyebrow: 'Case Insight',
-      value: age,
-      label: 'Days Old — Oldest Open Case',
-      sub: oldest.caseNumber
+
+    // Busiest agent overall (excluding Tech Depot)
+    const ownerCounts = {};
+    rawRows.forEach(r => {
+      const owner = r[OWNER_COLUMN];
+      if (!owner || owner === 'Tech Depot') return;
+      ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
     });
+    const busiest = Object.entries(ownerCounts).sort((a, b) => b[1] - a[1])[0];
+    if (busiest){
+      facts.push({
+        kind: 'number',
+        eyebrow: 'Case Insight',
+        value: busiest[1],
+        label: `Open Cases — ${busiest[0]}`,
+        sub: 'Most cases currently assigned'
+      });
+    }
   }
 
-  // Busiest agent overall (excluding Tech Depot)
-  const ownerCounts = {};
-  rawRows.forEach(r => {
-    const owner = r[OWNER_COLUMN];
-    if (!owner || owner === 'Tech Depot') return;
-    ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
-  });
-  const busiest = Object.entries(ownerCounts).sort((a, b) => b[1] - a[1])[0];
-  if (busiest){
+  // Resolved-case facts — one per time period, each a candidate in the
+  // random pool. getResolvedCount already falls back to sample data on
+  // its own, so these are always available even before resolved.xlsx
+  // has real data behind it.
+  RESOLVED_PERIODS.forEach(period => {
     facts.push({
       kind: 'number',
-      eyebrow: 'Case Insight',
-      value: busiest[1],
-      label: `Open Cases — ${busiest[0]}`,
-      sub: 'Most cases currently assigned'
+      eyebrow: 'Cases Resolved',
+      value: getResolvedCount(period.key),
+      label: period.label
     });
-  }
+  });
 
   return facts;
 }
 
 function getRandomFact(){
-  const computed = getComputedFacts();
-  const pool = [
-    ...computed,
-    ...QUOTES.map(q => ({ kind: 'quote', text: q }))
-  ];
-  if (!pool.length){
-    return { kind: 'quote', text: QUOTES[Math.floor(Math.random() * QUOTES.length)] };
-  }
+  const pool = getComputedFacts();
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -636,24 +661,23 @@ function getResolvedCount(periodKey){
   }).length;
 }
 
-function getOngoingProjects(){
+function getProjectGroups(){
   if (usingSampleProjects || !projectRows){
-    return SAMPLE_PROJECTS;
+    return SAMPLE_PROJECT_GROUPS;
   }
-  return projectRows
-    .filter(r => (r[PROJECT_STATUS_COLUMN] || '').toString().trim().toLowerCase() === 'ongoing')
-    .map(r => ({
-      name: r[PROJECT_NAME_COLUMN] || '(untitled)',
-      site: r[PROJECT_SITE_COLUMN] || '',
-      status: r[PROJECT_STATUS_COLUMN] || ''
-    }));
-}
-
-function getCompletedProjectsCount(){
-  if (usingSampleProjects || !projectRows){
-    return SAMPLE_PROJECTS_COMPLETED_COUNT;
-  }
-  return projectRows.filter(r => (r[PROJECT_STATUS_COLUMN] || '').toString().trim().toLowerCase() === 'completed').length;
+  const byProject = {};
+  projectRows.forEach(r => {
+    const name = r[PROJECT_NAME_COLUMN] || '(untitled)';
+    if (!byProject[name]){
+      byProject[name] = { name, units: [] };
+    }
+    byProject[name].units.push({
+      unit: r[UNIT_COLUMN] || '',
+      location: r[LOCATION_COLUMN] || '',
+      status: (r[PROJECT_STATUS_COLUMN] || 'Unknown').toString().trim()
+    });
+  });
+  return Object.values(byProject);
 }
 
 function topDriversForSlide(slide){
@@ -738,51 +762,40 @@ function renderSlide(index){
   if (slide.type === 'fact'){
     const fact = getRandomFact();
     labelEl.textContent = slide.label || 'Did You Know';
-    if (fact.kind === 'quote'){
-      eyebrowEl.textContent = 'A Little Motivation';
-      quoteEl.textContent = fact.text;
-      quoteEl.style.display = 'block';
-    } else {
-      eyebrowEl.textContent = fact.eyebrow || 'Case Insight';
-      numEl.textContent = fact.value.toLocaleString();
-      numEl.style.display = 'block';
-      underlineEl.style.display = 'block';
-      labelEl.textContent = fact.label;
-      if (fact.sub){
-        percentEl.innerHTML = `<span class="of-total" style="margin-left:0; font-size:0.5em;">${fact.sub}</span>`;
-        percentEl.style.display = 'block';
-      }
+    eyebrowEl.textContent = fact.eyebrow || 'Case Insight';
+    numEl.textContent = fact.value.toLocaleString();
+    numEl.style.display = 'block';
+    underlineEl.style.display = 'block';
+    labelEl.textContent = fact.label;
+    if (fact.sub){
+      percentEl.innerHTML = `<span class="of-total" style="margin-left:0; font-size:0.5em;">${fact.sub}</span>`;
+      percentEl.style.display = 'block';
     }
     return;
   }
 
-  if (slide.type === 'resolvedCycle'){
-    const period = RESOLVED_PERIODS[resolvedCycleIndex % RESOLVED_PERIODS.length];
-    eyebrowEl.textContent = 'Cases Resolved';
-    const count = getResolvedCount(period.key);
-    numEl.textContent = count.toLocaleString();
-    numEl.style.display = 'block';
-    underlineEl.style.display = 'block';
-    labelEl.textContent = period.label;
-    resolvedCycleIndex++;
-    return;
-  }
 
   if (slide.type === 'projects'){
     eyebrowEl.textContent = 'Tech Depot';
     labelEl.textContent = slide.label || 'Ongoing Projects';
-    const ongoing = getOngoingProjects();
-    if (!ongoing.length){
-      projectListEl.innerHTML = `<div class="row"><span class="proj-name">No ongoing projects listed.</span></div>`;
+    const groups = getProjectGroups();
+    if (!groups.length){
+      projectListEl.innerHTML = `<div class="empty-note">No projects listed.</div>`;
     } else {
-      projectListEl.innerHTML = ongoing.map(p =>
-        `<div class="row"><div class="proj-name">${p.name}</div><div class="proj-site">${p.site}</div></div>`
-      ).join('');
+      projectListEl.innerHTML = groups.map(group => {
+        const unitRows = group.units.map(u => `
+          <div class="unit-row">
+            <span class="unit-info">Unit ${u.unit} &nbsp;·&nbsp; ${u.location}</span>
+            <span class="status-badge">${u.status}</span>
+          </div>`).join('');
+        return `<div class="project-group">
+          <div class="project-group-title">${group.name}</div>
+          ${unitRows}
+        </div>`;
+      }).join('');
     }
     projectListEl.style.display = 'flex';
-    const completedCount = getCompletedProjectsCount();
-    projectFooterEl.textContent = `${completedCount} completed recently`;
-    projectFooterEl.style.display = 'block';
+    projectFooterEl.style.display = 'none';
     return;
   }
 
