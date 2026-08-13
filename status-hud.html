@@ -188,33 +188,60 @@
   #project-list{
     display:none;
     flex-direction: column;
-    gap: 22px;
+    gap: 12px;
     margin-top: 10px;
-    min-width: clamp(440px, 48vw, 820px);
+    min-width: clamp(460px, 50vw, 860px);
     max-height: 58vh;
     overflow: hidden;
     text-align:left;
   }
-  .project-group-title{
-    font-family: 'Archivo Black', sans-serif;
-    font-size: clamp(18px, 2.4vh, 26px);
-    color: var(--orange);
-    margin-bottom: 8px;
-    letter-spacing: 0.02em;
-  }
   .unit-row{
     display:flex;
-    align-items:center;
+    align-items:flex-start;
     justify-content: space-between;
     gap: 16px;
     background: #17130f;
     border: 1px solid var(--panel-edge);
+    border-left: 4px solid var(--orange);
     border-radius: 8px;
-    padding: 9px 18px;
-    margin-bottom: 8px;
+    padding: 12px 20px;
+  }
+  .dispatch-main{
+    display:flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
   .unit-info{
-    font-size: clamp(15px, 2vh, 20px);
+    font-size: clamp(16px, 2.1vh, 21px);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .dispatch-issue{
+    font-size: clamp(13px, 1.6vh, 17px);
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60vw;
+  }
+  .dispatch-vendor{
+    font-size: clamp(12px, 1.4vh, 15px);
+    color: var(--muted);
+    opacity: 0.75;
+  }
+  .dispatch-badges{
+    display:flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .stale-row{
+    border-left-color: var(--red);
+  }
+  .stale-badge{
+    background: var(--red);
     color: var(--text);
   }
   .status-badge{
@@ -228,6 +255,7 @@
     padding: 4px 12px;
     border-radius: 999px;
     white-space: nowrap;
+    margin-top: 2px;
   }
   #project-footer{
     display:none;
@@ -380,10 +408,12 @@ const RESOLVED_DATE_COLUMN = "Resolved On";  // verify against your real export
 // ── Ongoing-projects source (manually updated) ──
 const PROJECTS_URL = "https://raw.githubusercontent.com/lcee210/tech-depot-hud/main/projects.xlsx";
 const PROJECTS_SHEET_NAME = "";
-const PROJECT_NAME_COLUMN = "Project";
-const UNIT_COLUMN = "Unit";
-const LOCATION_COLUMN = "Location";
-const PROJECT_STATUS_COLUMN = "Status";  // e.g. "Staging" — one row per unit, grouped by project below
+const DISPATCH_SITE_COLUMN = "Site";
+const DISPATCH_ISSUE_COLUMN = "Issue";
+const DISPATCH_STATUS_COLUMN = "Status";
+const DISPATCH_VENDOR_COLUMN = "Vendor";
+const DISPATCH_DATE_COLUMN = "Created";
+const STALE_BUSINESS_DAYS = 3;  // flag dispatches open this many business days or more
 
 const SLIDES = [
   { label: "Total",       filterValue: null },
@@ -408,7 +438,7 @@ const SLIDES = [
       { name: "WB Unit 0840", count: 2 }
     ] },
   { label: "Did You Know", type: "fact" },
-  { label: "Ongoing Projects", type: "projects", source: "projects" }
+  { label: "Active Dispatches", type: "projects", source: "projects" }
 ];
 
 const SAMPLE_COUNTS = [47, 12, 24, 8]; // fallback numbers if the fetch fails, matched to SLIDES order
@@ -423,17 +453,11 @@ const SAMPLE_TOP_DRIVERS = [
   { name: "TPHC Printer", count: 7 }
 ];
 const SAMPLE_RESOLVED_COUNTS = { day: 6, week: 31, month: 118, year: 742 };
-const SAMPLE_PROJECT_GROUPS = [
-  {
-    name: "HHPOS Tablet Upgrade",
-    units: [
-      { unit: "209", location: "Richardson, TX", status: "Staging" },
-      { unit: "41",  location: "Harlingen, TX",  status: "Staging" },
-      { unit: "85",  location: "Harlingen, TX",  status: "Live" },
-      { unit: "504", location: "Harlingen, TX",  status: "Staging" },
-      { unit: "31",  location: "Corpus Christi, TX", status: "Staging" }
-    ]
-  }
+const SAMPLE_DISPATCHES = [
+  { site: "WB Unit 0717", issue: "PPT Docking station - needs remounting", status: "Assigned", vendor: "3B2 Solutions LLC", daysAgo: 1 },
+  { site: "WB Unit 1588", issue: "Kiosk PD mount is not connecting to PD", status: "Assigned", vendor: "3B2 Solutions LLC", daysAgo: 6 },
+  { site: "WB Unit 1042", issue: "Reg06 - USB Port Power Issue", status: "Enroute", vendor: "3B2 Solutions LLC", daysAgo: 0 },
+  { site: "WB Franchise Unit 1550", issue: "REG04 PD lane closed screen", status: "Enroute", vendor: "Absolute Technology Solutions LLC", daysAgo: 2 }
 ];
 /* ============================================================ */
 
@@ -546,6 +570,23 @@ function breakdownForSlide(slide){
 function daysBetween(date1, date2){
   const ms = Math.abs(date2 - date1);
   return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
+
+function businessDaysSince(startDate, endDate){
+  // Counts weekdays strictly between startDate and endDate (exclusive
+  // of the start day itself, inclusive up through endDate's date).
+  // Weekends (Sat/Sun) are skipped entirely, per "not counting weekends".
+  let count = 0;
+  const current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  while (current < end){
+    current.setDate(current.getDate() + 1);
+    const day = current.getDay(); // 0 = Sunday, 6 = Saturday
+    if (day !== 0 && day !== 6) count++;
+  }
+  return count;
 }
 
 function excelDateToJS(value){
@@ -661,23 +702,34 @@ function getResolvedCount(periodKey){
   }).length;
 }
 
-function getProjectGroups(){
+function getDispatches(){
+  let dispatches;
   if (usingSampleProjects || !projectRows){
-    return SAMPLE_PROJECT_GROUPS;
-  }
-  const byProject = {};
-  projectRows.forEach(r => {
-    const name = r[PROJECT_NAME_COLUMN] || '(untitled)';
-    if (!byProject[name]){
-      byProject[name] = { name, units: [] };
-    }
-    byProject[name].units.push({
-      unit: r[UNIT_COLUMN] || '',
-      location: r[LOCATION_COLUMN] || '',
-      status: (r[PROJECT_STATUS_COLUMN] || 'Unknown').toString().trim()
+    const now = new Date();
+    dispatches = SAMPLE_DISPATCHES.map(d => ({
+      site: d.site,
+      issue: d.issue,
+      status: d.status,
+      vendor: d.vendor,
+      businessDaysOld: d.daysAgo
+    }));
+  } else {
+    const now = new Date();
+    dispatches = projectRows.map(r => {
+      const created = excelDateToJS(r[DISPATCH_DATE_COLUMN]);
+      return {
+        site: r[DISPATCH_SITE_COLUMN] || '(unknown site)',
+        issue: r[DISPATCH_ISSUE_COLUMN] || '',
+        status: (r[DISPATCH_STATUS_COLUMN] || 'Unknown').toString().trim(),
+        vendor: r[DISPATCH_VENDOR_COLUMN] || '',
+        businessDaysOld: created ? businessDaysSince(created, now) : null
+      };
     });
-  });
-  return Object.values(byProject);
+  }
+
+  // Oldest (most overdue) first, so anything stale surfaces at the top
+  dispatches.sort((a, b) => (b.businessDaysOld ?? -1) - (a.businessDaysOld ?? -1));
+  return dispatches;
 }
 
 function topDriversForSlide(slide){
@@ -777,20 +829,27 @@ function renderSlide(index){
 
   if (slide.type === 'projects'){
     eyebrowEl.textContent = 'Tech Depot';
-    labelEl.textContent = slide.label || 'Ongoing Projects';
-    const groups = getProjectGroups();
-    if (!groups.length){
-      projectListEl.innerHTML = `<div class="empty-note">No projects listed.</div>`;
+    labelEl.textContent = slide.label || 'Active Dispatches';
+    const dispatches = getDispatches();
+    if (!dispatches.length){
+      projectListEl.innerHTML = `<div class="empty-note">No active dispatches.</div>`;
     } else {
-      projectListEl.innerHTML = groups.map(group => {
-        const unitRows = group.units.map(u => `
-          <div class="unit-row">
-            <span class="unit-info">Unit ${u.unit} &nbsp;·&nbsp; ${u.location}</span>
-            <span class="status-badge">${u.status}</span>
-          </div>`).join('');
-        return `<div class="project-group">
-          <div class="project-group-title">${group.name}</div>
-          ${unitRows}
+      projectListEl.innerHTML = dispatches.map(d => {
+        const isStale = d.businessDaysOld !== null && d.businessDaysOld >= STALE_BUSINESS_DAYS;
+        const ageBadge = isStale
+          ? `<span class="status-badge stale-badge">${d.businessDaysOld} Business Day${d.businessDaysOld === 1 ? '' : 's'}</span>`
+          : '';
+        return `
+        <div class="unit-row${isStale ? ' stale-row' : ''}">
+          <div class="dispatch-main">
+            <span class="unit-info">${d.site}</span>
+            <span class="dispatch-issue">${d.issue}</span>
+            ${d.vendor ? `<span class="dispatch-vendor">${d.vendor}</span>` : ''}
+          </div>
+          <div class="dispatch-badges">
+            <span class="status-badge">${d.status}</span>
+            ${ageBadge}
+          </div>
         </div>`;
       }).join('');
     }
