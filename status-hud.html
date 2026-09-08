@@ -437,12 +437,13 @@ const SLIDES = [
       { name: "John Widner", count: 9 },
       { name: "Lawrence Conway", count: 3 }
     ] },
-  { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [],
-    sampleBreakdown: [
-      { name: "Waiting for Customer", count: 26 },
-      { name: "Waiting for Hardware", count: 7 },
-      { name: "Waiting for Vendor", count: 2 }
-    ] },
+  // On Hold slide hidden for now — restore by uncommenting:
+  // { label: "On Hold",     filterValue: "On Hold", breakdownBy: HOLD_CODE_COLUMN, exclude: [],
+  //   sampleBreakdown: [
+  //     { name: "Waiting for Customer", count: 26 },
+  //     { name: "Waiting for Hardware", count: 7 },
+  //     { name: "Waiting for Vendor", count: 2 }
+  //   ] },
   { label: "Top Ticket Drivers", type: "topN", column: CSI_COLUMN, topN: 3 },
   { label: "Customers With Multiple Cases", type: "topN", column: CUSTOMER_COLUMN, topN: 5, minCount: 2, showRank: false,
     sampleOverride: [
@@ -616,53 +617,14 @@ function excelDateToJS(value){
 function getComputedFacts(){
   const facts = [];
 
-  if (!usingSample && rawRows && rawRows.length){
-    // Oldest open case
-    let oldest = null;
-    rawRows.forEach(r => {
-      const created = excelDateToJS(r['Created On']);
-      if (created && (!oldest || created < oldest.date)){
-        oldest = { date: created, caseNumber: r['Case Number'] || '' };
-      }
-    });
-    if (oldest){
-      const age = daysBetween(oldest.date, new Date());
-      facts.push({
-        kind: 'number',
-        eyebrow: 'Case Insight',
-        value: age,
-        label: 'Days Old — Oldest Open Case',
-        sub: oldest.caseNumber
-      });
-    }
-
-    // Busiest agent overall (excluding Tech Depot)
-    const ownerCounts = {};
-    rawRows.forEach(r => {
-      const owner = r[OWNER_COLUMN];
-      if (!owner || owner === 'Tech Depot') return;
-      ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
-    });
-    const busiest = Object.entries(ownerCounts).sort((a, b) => b[1] - a[1])[0];
-    if (busiest){
-      facts.push({
-        kind: 'number',
-        eyebrow: 'Case Insight',
-        value: busiest[1],
-        label: `Open Cases — ${busiest[0]}`,
-        sub: 'Most cases currently assigned'
-      });
-    }
-  }
-
-  // Resolved-case facts — one per time period, each a candidate in the
-  // random pool. getResolvedCount already falls back to sample data on
-  // its own, so these are always available even before resolved.xlsx
-  // has real data behind it.
+  // Cases closed per time period, each a candidate in the random pool.
+  // getResolvedCount already falls back to sample data on its own, so
+  // these are always available even before resolved.xlsx has real data
+  // behind it.
   RESOLVED_PERIODS.forEach(period => {
     facts.push({
       kind: 'number',
-      eyebrow: 'Cases Resolved',
+      eyebrow: 'Cases Closed',
       value: getResolvedCount(period.key),
       label: period.label
     });
