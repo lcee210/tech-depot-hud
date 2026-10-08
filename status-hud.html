@@ -445,11 +445,11 @@ const SLIDES = [
   //     { name: "Waiting for Vendor", count: 2 }
   //   ] },
   { label: "Top Ticket Drivers", type: "topN", column: CSI_COLUMN, topN: 3 },
-  { label: "Customers With Multiple Cases", type: "topN", column: CUSTOMER_COLUMN, topN: 5, minCount: 2, showRank: false,
+  { label: "Customers With Multiple Cases", type: "topN", column: CUSTOMER_COLUMN, topN: 5, minCount: 3, showRank: false,
     sampleOverride: [
-      { name: "WB Unit 0816", count: 3 },
-      { name: "WB Franchise Unit 0369", count: 2 },
-      { name: "WB Unit 0840", count: 2 }
+      { name: "WB Unit 0816", count: 4 },
+      { name: "WB Franchise Unit 0369", count: 3 },
+      { name: "WB Unit 0840", count: 3 }
     ] },
   { label: "Did You Know", type: "fact" },
   { label: "Active Dispatches", type: "projects", source: "projects" }
